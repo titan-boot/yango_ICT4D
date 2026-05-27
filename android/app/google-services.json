@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "35529929970",
+    "project_id": "yango-f3967",
+    "storage_bucket": "yango-f3967.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:35529929970:android:597b148da4e70f9e5d4c6b",
+        "android_client_info": {
+          "package_name": "com.yango.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "35529929970-a3orl4vgbdh4h49sh71b1v72afoqtisi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD94Z800e0e6CGmOpOIRcJYaBCHRsWHBhc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "35529929970-a3orl4vgbdh4h49sh71b1v72afoqtisi.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
