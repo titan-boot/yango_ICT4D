@@ -58,19 +58,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  clientButton: {
-    backgroundColor: '#1565C0',
-  },
-  driverButton: {
-    backgroundColor: '#2E7D32',
-  },
-  buttonIcon: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
+  clientButton: { backgroundColor: '#1565C0' },
+  driverButton: { backgroundColor: '#2E7D32' },
+  buttonIcon: { fontSize: 40, marginBottom: 8 },
+  buttonText: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
 });

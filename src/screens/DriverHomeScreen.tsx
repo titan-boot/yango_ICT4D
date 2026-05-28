@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import * as geolocation from '@react-native-community/geolocation';
+import Geolocation from '@react-native-community/geolocation';
 import { updateDriverStatus, subscribeToDriverPosition } from '../services/driverStatusService';
 import { subscribeToPendingRides, RideRequest } from '../services/rideService';
 import RideRequestPopup from '../components/RideRequestPopup';
@@ -30,15 +30,18 @@ export default function DriverHomeScreen({ driverId, driverName = 'Chauffeur' }:
   const [isOnline, setIsOnline] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [isLoadingPosition, setIsLoadingPosition] = useState(true);
+  const [isLoadingRides, setIsLoadingRides] = useState(false);
   const mapRef = useRef<MapView>(null);
   const [rideRequests, setRideRequests] = useState<RideRequest[]>([]);
   const [showRidePopup, setShowRidePopup] = useState(false);
   const [currentRideRequest, setCurrentRideRequest] = useState<RideRequest | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const rideUnsubscribeRef = useRef<(() => void) | null>(null);
 
-  // Initialiser la position du chauffeur
+  // Initialiser la position du chauffeur (une fois)
   useEffect(() => {
     setIsLoadingPosition(true);
-    geolocation.getCurrentPosition(
+    Geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         setCurrentPosition({ lat: latitude, lng: longitude });
@@ -46,61 +49,85 @@ export default function DriverHomeScreen({ driverId, driverName = 'Chauffeur' }:
       },
       (error) => {
         console.error('Erreur de géolocalisation:', error);
+        // Utiliser une position par défaut pour le test (Douala)
+        setCurrentPosition({ lat: 4.0511, lng: 9.7679 });
         setIsLoadingPosition(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
 
-  // Surveiller la position si en ligne
+  // Surveiller la position en temps réel si en ligne
   useEffect(() => {
     if (!isOnline || !currentPosition) return;
 
-    const watchId = geolocation.watchPosition(
+    watchIdRef.current = Geolocation.watchPosition(
       (position) => {
         const newPosition = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         };
         setCurrentPosition(newPosition);
+        // Mettre à jour la position du chauffeur dans Firestore
         updateDriverStatus(driverId, true, newPosition);
       },
-      (error) => console.error('Erreur de suivi:', error),
-      { enableHighAccuracy: true, distanceFilter: 10 } // Mettre à jour tous les 10 mètres
-    );
+      (error) => console.error('Erreur de suivi de position:', error),
+      { enableHighAccuracy: true, distanceFilter: 10, timeout: 10000 } // Mettre à jour tous les 10 mètres
+    ) as unknown as number;
 
-    return () => geolocation.clearWatch(watchId);
-  }, [isOnline, driverId]);
+    return () => {
+      if (watchIdRef.current !== null) {
+        Geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, [isOnline, driverId, currentPosition]);
 
   // Gérer le changement du statut en ligne/hors ligne
   useEffect(() => {
     if (isOnline && currentPosition) {
       updateDriverStatus(driverId, true, currentPosition);
+      setIsLoadingRides(true);
     } else if (!isOnline) {
       updateDriverStatus(driverId, false);
+      setIsLoadingRides(false);
     }
   }, [isOnline, driverId]);
 
-  // Écouter les courses en attente
+  // Écouter les courses en attente quand en ligne
   useEffect(() => {
-    if (!isOnline || !currentPosition) return;
+    if (!isOnline || !currentPosition) {
+      // Arrêter d'écouter les courses
+      if (rideUnsubscribeRef.current) {
+        rideUnsubscribeRef.current();
+      }
+      return;
+    }
 
-    const unsubscribe = subscribeToPendingRides(
+    setIsLoadingRides(true);
+    
+    // S'abonner aux courses en attente dans un rayon de 5 km
+    rideUnsubscribeRef.current = subscribeToPendingRides(
       currentPosition.lat,
       currentPosition.lng,
-      5,
+      5, // rayon de 5 km
       (rides) => {
         setRideRequests(rides);
-        // Afficher le pop-up si une nouvelle course arrive
-        if (rides.length > 0 && !currentRideRequest) {
+        setIsLoadingRides(false);
+        
+        // Afficher le pop-up si une nouvelle course arrive et pas déjà une affichée
+        if (rides.length > 0 && !showRidePopup) {
           setCurrentRideRequest(rides[0]);
           setShowRidePopup(true);
         }
       }
     );
 
-    return () => unsubscribe();
-  }, [isOnline, currentPosition, currentRideRequest]);
+    return () => {
+      if (rideUnsubscribeRef.current) {
+        rideUnsubscribeRef.current();
+      }
+    };
+  }, [isOnline, currentPosition, showRidePopup]);
 
   const handleToggleOnline = async () => {
     setIsOnline(!isOnline);
@@ -114,6 +141,23 @@ export default function DriverHomeScreen({ driverId, driverName = 'Chauffeur' }:
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       });
+    }
+  };
+
+  const handleRideAccepted = () => {
+    setShowRidePopup(false);
+    setCurrentRideRequest(null);
+    // Les autres courses seront refiltrées automatiquement
+  };
+
+  const handleRideRejected = () => {
+    setShowRidePopup(false);
+    // Passer à la course suivante si disponible
+    if (rideRequests.length > 1) {
+      setCurrentRideRequest(rideRequests[1]);
+      setShowRidePopup(true);
+    } else {
+      setCurrentRideRequest(null);
     }
   };
 
@@ -168,6 +212,7 @@ export default function DriverHomeScreen({ driverId, driverName = 'Chauffeur' }:
             }}
             title="Votre position"
             pinColor={isOnline ? '#4CAF50' : '#999'}
+            description={`Lat: ${currentPosition.lat.toFixed(4)}, Lng: ${currentPosition.lng.toFixed(4)}`}
           />
         </MapView>
       ) : (
@@ -180,7 +225,7 @@ export default function DriverHomeScreen({ driverId, driverName = 'Chauffeur' }:
       {isOnline && (
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{rideRequests.length}</Text>
+            <Text style={styles.statValue}>{isLoadingRides ? '...' : rideRequests.length}</Text>
             <Text style={styles.statLabel}>Courses en attente</Text>
           </View>
           <View style={styles.statCard}>
@@ -195,15 +240,9 @@ export default function DriverHomeScreen({ driverId, driverName = 'Chauffeur' }:
         <RideRequestPopup
           visible={showRidePopup}
           rideRequest={currentRideRequest}
-          onAccept={async () => {
-            // Action d'acceptation sera gérée dans le composant
-            console.log('Course acceptée');
-            setShowRidePopup(false);
-          }}
-          onReject={async () => {
-            setShowRidePopup(false);
-            setCurrentRideRequest(null);
-          }}
+          driverId={driverId}
+          onAccept={handleRideAccepted}
+          onReject={handleRideRejected}
         />
       )}
     </SafeAreaView>

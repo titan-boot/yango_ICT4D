@@ -1,29 +1,35 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
-// Importation de tous les écrans de votre équipe
 import ClientHomeScreen from '../screens/ClientHomeScreen';
-import DriverHomeScreen from '../screens/DriverHomeScreen';
 import DriverMainScreen from '../screens/DriverMainScreen';
-import RideNavigationScreen from '../screens/RideNavigationScreen';
-import RideCompletionScreen from '../screens/RideCompletionScreen';
+import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 
 const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   return (
-    <Stack.Navigator 
-      initialRouteName="ClientHome" // L'application démarre sur la vue Client
-      screenOptions={{ headerShown: false }} // Cache la barre de navigation du haut style Yango
+    <Stack.Navigator
+      initialRouteName="RoleSelection"
+      screenOptions={{ headerShown: false }}
     >
-      {/* 👤 Écrans du flux Client */}
+      {/* 🎯 Sélection du rôle */}
+      <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+
+      {/* 👤 Flux Client */}
       <Stack.Screen name="ClientHome" component={ClientHomeScreen} />
 
-      {/* 🚖 Écrans du flux Chauffeur */}
-      <Stack.Screen name="DriverHome" component={DriverHomeScreen} />
-      <Stack.Screen name="DriverMain" component={DriverMainScreen} />
-      <Stack.Screen name="RideNavigation" component={RideNavigationScreen} />
-      <Stack.Screen name="RideCompletion" component={RideCompletionScreen} />
+      {/* 🚖 Flux Chauffeur — DriverMainScreen gère la navigation interne */}
+      <Stack.Screen
+        name="DriverMain"
+        children={(props) => (
+          <DriverMainScreen
+            {...props}
+            driverId="driver_test_001"
+            driverName="Chauffeur Test"
+          />
+        )}
+      />
     </Stack.Navigator>
   );
 }

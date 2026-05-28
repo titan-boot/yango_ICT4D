@@ -10,7 +10,9 @@ import {
   GeoPoint,
   Timestamp,
   getDocs,
+  DocumentSnapshot,
 } from 'firebase/firestore';
+  import { geohashForLocation, geohashQueryBounds, distanceBetween } from 'geofire-common';
 
 /**
  * États possibles d'une course
@@ -31,11 +33,12 @@ export interface RideRequest {
   driverId?: string;
   pickupLocation: { lat: number; lng: number };
   dropoffLocation: { lat: number; lng: number };
+  pickupGeohash?: string; // Pour le géofencing
   pickupAddress: string;
   dropoffAddress: string;
   status: RideStatus;
   fare: number;
-  distance: number;
+  distance?: number; // En mètres ou km selon le contexte
   duration: number; // en secondes
   requestedAt: any; // Timestamp
   acceptedAt?: any;
@@ -129,7 +132,8 @@ export async function completeRide(rideId: string) {
 }
 
 /**
- * Écouter les courses en attente pour un zone (pour les chauffeurs)
+ * Écouter les courses en attente dans un rayon donné (avec géofencing)
+ * IMPORTANT: Cette fonction doit être appelée avec la position actuelle du chauffeur
  */
 export function subscribeToPendingRides(
   pickupLat: number,
@@ -137,24 +141,58 @@ export function subscribeToPendingRides(
   radiusKm: number = 5,
   callback: (rides: RideRequest[]) => void
 ) {
-  // Note: Pour une vraie implémentation avec géoquerying,
-  // utiliser geofire-common comme dans geoService.ts
-  const q = query(
-    collection(db, 'rides'),
-    where('status', '==', RideStatus.PENDING)
-  );
+  // Utiliser geofire-common pour le géofencing
+  const center: [number, number] = [pickupLat, pickupLng];
+  const bounds = geohashQueryBounds(center, radiusKm * 1000);
+  const ridesToReturn: Map<string, RideRequest> = new Map();
+  let unsubscribers: (() => void)[] = [];
 
-  return onSnapshot(q, (querySnapshot) => {
-    const rides: RideRequest[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      rides.push({
-        id: doc.id,
-        ...data,
-      } as RideRequest);
+  // Créer des queries pour chaque limite de geohash
+  bounds.forEach((bound) => {
+    const q = query(
+      collection(db, 'rides'),
+      where('status', '==', RideStatus.PENDING),
+      where('pickupGeohash', '>=', bound[0]),
+      where('pickupGeohash', '<=', bound[1])
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const pickupPos = data.pickupLocation;
+        
+        // Vérifier si la distance est vraiment dans le rayon (car geohash est approximatif)
+        if (pickupPos && pickupPos.latitude && pickupPos.longitude) {
+          const distance = distanceBetween(
+            [pickupPos.latitude, pickupPos.longitude],
+            center
+          );
+
+          if (distance <= radiusKm) {
+            ridesToReturn.set(docSnap.id, {
+              id: docSnap.id,
+              ...data,
+              distance: distance, // Ajouter la distance calculée
+            } as RideRequest);
+          } else {
+            ridesToReturn.delete(docSnap.id);
+          }
+        }
+      });
+
+      // Retourner les courses triées par distance
+      const sortedRides = Array.from(ridesToReturn.values())
+        .sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      callback(sortedRides);
     });
-    callback(rides);
+
+    unsubscribers.push(unsubscribe);
   });
+
+  // Retourner une fonction pour nettoyer tous les listeners
+  return () => {
+    unsubscribers.forEach((unsub) => unsub());
+  };
 }
 
 /**
@@ -193,13 +231,22 @@ export function subscribeToCurrentRide(
  * Obtenir les détails d'une course
  */
 export async function getRideDetails(rideId: string): Promise<RideRequest | null> {
-  const rideRef = doc(db, 'rides', rideId);
-  const docSnap = await getDocs(collection(db, 'rides'));
-  
-  for (const d of docSnap.docs) {
-    if (d.id === rideId) {
-      return { id: d.id, ...d.data() } as RideRequest;
+  try {
+    const rideRef = doc(db, 'rides', rideId);
+    const docSnap = await getDocs(collection(db, 'rides'));
+    
+    for (const d of docSnap.docs) {
+      if (d.id === rideId) {
+        const data = d.data();
+        return { 
+          id: d.id, 
+          ...data 
+        } as RideRequest;
+      }
     }
+    return null;
+  } catch (error) {
+    console.error('Erreur lors de la récupération des détails de la course:', error);
+    return null;
   }
-  return null;
 }
