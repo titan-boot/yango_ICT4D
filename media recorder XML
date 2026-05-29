@@ -1,0 +1,4 @@
+<androidx.constraintlayout.widget.ConstraintLayout>
+    <androidx.camera.view.PreviewView android:id="@+id/previewView" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
+    <Button android:id="@+id/record_button" android:text="Enregistrer" android:layout_gravity="bottom|center"/>
+</androidx.constraintlayout.widget.ConstraintLayout>
