@@ -1,0 +1,14 @@
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+<application ...>
+    <service android:name=".emergency.SOSButtonService" />
+    <activity android:name=".emergency.EmergencyActivity" />
+    <activity android:name=".emergency.MediaRecorderActivity" />
+    <activity android:name=".emergency.NearbyHelpPointsActivity" />
+    <activity android:name=".emergency.FirstAidGuidesActivity" />
+    
+    <meta-data android:name="com.google.android.geo.API_KEY" android:value="VOTRE_CLE_MAPS" />
+</application>
