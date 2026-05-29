@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:padding="16dp">
+    <TextView android:text="🚨 URGENCE" android:textSize="24sp" android:textStyle="bold"/>
+    <Button android:id="@+id/btn_nearby_help" android:text="Points de secours"/>
+    <Button android:id="@+id/btn_first_aid" android:text="Gestes de secours"/>
+    <Button android:id="@+id/btn_record_media" android:text="Enregistrer vidéo"/>
+</LinearLayout>
